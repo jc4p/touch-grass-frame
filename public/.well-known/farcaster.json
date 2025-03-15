@@ -1,0 +1,17 @@
+{
+  "accountAssociation": {
+    "header": "eyJmaWQiOjk3NzIzMywidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweGE2N0JhMDI4MTIzMWVCOUUyZWE0Y0Y5Nzg5NGMwYjBiNUI4MDFDYzYifQ",
+    "payload": "eyJkb21haW4iOiJ0b3VjaC1ncmFzcy5rYXNyYS5jb2RlcyJ9",
+    "signature": "MHg1NzQ3ODA4Yzk3NTNiZDI2MmE2YzZiNjNlMzI0ZWE2OGUzOWQ1ZjVkYmNhYzc3YTg5ZDFhYzE1YjYzMzE3NjcxNTIxZDE2MmU2ZTIyYjcyOGZmNmI4ODg5NWE3OTYxNDAyNjc2YWEzODNiMmYzZmEwMTI5NmIwYjQ2ZGFhZDhjNDFj"
+  },
+  "frame": {
+    "version": "1",
+    "name": "Touch Grass",
+    "iconUrl": "https://images.kasra.codes/touch-grass/square.png",
+    "homeUrl": "https://touch-grass.kasra.codes",
+    "imageUrl": "https://images.kasra.codes/touch-grass/rectangle.png",
+    "buttonTitle": "Touch Grass",
+    "splashImageUrl": "https://images.kasra.codes/touch-grass/square.png",
+    "splashBackgroundColor": "#000000"
+  }
+}

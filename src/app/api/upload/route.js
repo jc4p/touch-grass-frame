@@ -1,6 +1,16 @@
 import { NextResponse } from 'next/server';
 import { uploadImageToR2 } from '@/lib/r2';
 
+// Configure the route to use Edge Runtime with increased timeout
+export const runtime = 'edge';
+export const dynamic = 'force-dynamic';
+
+// Set appropriate response caching (prevents caching of API responses)
+export const fetchCache = 'force-no-store';
+
+// Set a maximum duration for this route (30 seconds)
+export const maxDuration = 30; // in seconds
+
 export async function POST(request) {
   try {
     // Parse the multipart form data

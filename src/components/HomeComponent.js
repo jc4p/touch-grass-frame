@@ -36,7 +36,12 @@ export default function HomeComponent() {
   useEffect(() => {
     const fetchOverlays = async () => {
       try {
-        const response = await fetch('/api/overlays');
+        const response = await fetch('/api/overlays', {
+          // Add credentials to ensure cookies are sent
+          credentials: 'same-origin',
+          // Ensure mode is appropriate for iframe context
+          mode: 'same-origin'
+        });
         if (response.ok) {
           const data = await response.json();
           if (data.success && Array.isArray(data.overlays)) {
@@ -84,6 +89,7 @@ export default function HomeComponent() {
   useEffect(() => {
     // Preload dark mode overlay
     const darkOverlay = new window.Image();
+    darkOverlay.crossOrigin = "anonymous";
     darkOverlay.onload = () => {
       darkOverlayRef.current = darkOverlay;
       // If we're in dark mode, redraw canvas when this image loads
@@ -91,16 +97,23 @@ export default function HomeComponent() {
         drawImageToCanvas();
       }
     };
+    darkOverlay.onerror = () => {
+      console.error("Error loading dark overlay image:", currentOverlay.darkModeImage);
+    };
     darkOverlay.src = currentOverlay.darkModeImage;
     
     // Preload light mode overlay
     const lightOverlay = new window.Image();
+    lightOverlay.crossOrigin = "anonymous";
     lightOverlay.onload = () => {
       lightOverlayRef.current = lightOverlay;
       // If we're in light mode, redraw canvas when this image loads
       if (!darkMode && selectedImage && canvasRef.current) {
         drawImageToCanvas();
       }
+    };
+    lightOverlay.onerror = () => {
+      console.error("Error loading light overlay image:", currentOverlay.lightModeImage);
     };
     lightOverlay.src = currentOverlay.lightModeImage;
   }, [currentOverlay]);
@@ -165,6 +178,7 @@ export default function HomeComponent() {
     
     reader.onload = (event) => {
       const img = new window.Image();
+      img.crossOrigin = "anonymous";
       img.onload = () => {
         setSelectedImage(img);
         setScrollPosition(0); // Reset scroll position for new image
@@ -370,8 +384,15 @@ export default function HomeComponent() {
     
     setIsLoading(true);
     try {
-      // Convert canvas to blob
-      const blob = await new Promise(resolve => croppedCanvas.toBlob(resolve, 'image/png'));
+      // Convert canvas to blob with proper settings for iframe
+      const blob = await new Promise(resolve => {
+        try {
+          croppedCanvas.toBlob(resolve, 'image/png');
+        } catch (error) {
+          console.error("Canvas toBlob error:", error);
+          throw new Error("Failed to convert canvas to image. This may be due to security restrictions in iframes.");
+        }
+      });
       
       // Create form data
       const formData = new FormData();
@@ -382,10 +403,12 @@ export default function HomeComponent() {
       const userFid = typeof window !== 'undefined' && window.userFid ? window.userFid : '977233';
       formData.append('userFid', userFid);
       
-      // Call the API endpoint
+      // Call the API endpoint with appropriate CORS settings
       const response = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
+        credentials: 'same-origin',
+        mode: 'same-origin'
       });
       
       if (response.ok) {
@@ -442,8 +465,11 @@ export default function HomeComponent() {
   };
 
   const handleOverlaySelect = async (overlay) => {
+    // Set the current overlay directly
     setCurrentOverlay(overlay);
     closeModal();
+    
+    // Note: The useEffect hook will handle loading the images when currentOverlay changes
     
     // Increment usage count if this is an explicit selection (not the initial default)
     if (overlay.id && isModalOpen) {
@@ -453,6 +479,8 @@ export default function HomeComponent() {
           headers: {
             'Content-Type': 'application/json',
           },
+          credentials: 'same-origin',
+          mode: 'same-origin',
           body: JSON.stringify({ id: overlay.id }),
         });
       } catch (error) {
@@ -471,7 +499,14 @@ export default function HomeComponent() {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       const imageUrl = URL.createObjectURL(file);
-      setDarkModePreview(imageUrl);
+      
+      // Create image with crossOrigin to prevent tainting
+      const img = new window.Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        setDarkModePreview(imageUrl);
+      };
+      img.src = imageUrl;
     }
   };
   
@@ -479,7 +514,14 @@ export default function HomeComponent() {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       const imageUrl = URL.createObjectURL(file);
-      setLightModePreview(imageUrl);
+      
+      // Create image with crossOrigin to prevent tainting
+      const img = new window.Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        setLightModePreview(imageUrl);
+      };
+      img.src = imageUrl;
     }
   };
 
@@ -598,7 +640,12 @@ export default function HomeComponent() {
                       >
                         <h3>{overlay.name}</h3>
                         <div className={styles.overlayPreview}>
-                          <img src={overlay.darkModeImage} alt={overlay.name} className={styles.previewImage} />
+                          <img 
+                            src={overlay.darkModeImage} 
+                            alt={overlay.name} 
+                            className={styles.previewImage}
+                            crossOrigin="anonymous"
+                          />
                         </div>
                       </div>
                     ))

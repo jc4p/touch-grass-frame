@@ -10,6 +10,19 @@ export const fetchCache = 'force-no-store';
 // Set a maximum duration for this route (30 seconds)
 export const maxDuration = 30; // in seconds
 
+// Helper function to set CORS headers for iframe compatibility
+function setCorsHeaders(response) {
+  response.headers.set('Access-Control-Allow-Origin', '*');
+  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type');
+  return response;
+}
+
+// Handle OPTIONS requests for CORS preflight
+export async function OPTIONS() {
+  return setCorsHeaders(new NextResponse(null, { status: 204 }));
+}
+
 export async function POST(request) {
   try {
     // Parse the multipart form data
@@ -30,17 +43,19 @@ export async function POST(request) {
     // Upload to R2 with the userFid
     const imageUrl = await uploadImageToR2(buffer, userFid);
     
-    // Return the URL of the uploaded image
-    return NextResponse.json({ 
+    // Return the URL of the uploaded image with CORS headers
+    const response = NextResponse.json({ 
       success: true,
       message: 'Image uploaded successfully',
       url: imageUrl 
     });
+    return setCorsHeaders(response);
   } catch (error) {
     console.error('Error uploading image:', error);
-    return NextResponse.json(
+    const errorResponse = NextResponse.json(
       { error: error.message || 'Something went wrong' }, 
       { status: 500 }
     );
+    return setCorsHeaders(errorResponse);
   }
 } 

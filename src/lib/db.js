@@ -14,13 +14,13 @@ export async function getApprovedOverlays(featuredFirst = true) {
       rows = await sql`
         SELECT * FROM frame_overlays 
         WHERE is_approved = true 
-        ORDER BY is_featured DESC, usage_count DESC, created_at DESC
+        ORDER BY created_at DESC
       `;
     } else {
       rows = await sql`
         SELECT * FROM frame_overlays 
         WHERE is_approved = true 
-        ORDER BY usage_count DESC, created_at DESC
+        ORDER BY created_at DESC
       `;
     }
     

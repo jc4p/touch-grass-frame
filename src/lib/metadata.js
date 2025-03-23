@@ -1,9 +1,10 @@
 /**
  * Generates metadata for the page, including Farcaster Frame metadata
  * @param {string|null} imageParam - Optional image filename from query parameter
+ * @param {string|null} overlayId - Optional overlay ID from query parameter
  * @returns {Object} Page metadata including frame information
  */
-export function generateMetadata(imageParam) {
+export async function generateMetadata(imageParam, overlayId) {
   // Base URL for the CDN/image storage
   const cdnBaseUrl = 'https://images.kasra.codes';
   
@@ -18,15 +19,34 @@ export function generateMetadata(imageParam) {
   
   console.log('Frame image URL:', imageUrl);
   
+  // Default button name
+  let buttonName = "Touch Grass";
+  
+  // If overlayId is provided, get the overlay name from the database
+  if (overlayId) {
+    try {
+      // Dynamically import the db module to prevent server component issues
+      const { getOverlayById } = await import('./db');
+      const overlay = await getOverlayById(overlayId);
+      
+      if (overlay && overlay.name) {
+        buttonName = overlay.name;
+      }
+    } catch (error) {
+      console.error('Error fetching overlay by ID:', error);
+      // If there's an error, we'll fall back to the default name
+    }
+  }
+  
   // Generate the frame metadata - following exact structure from FRAME_INTEGRATION.md
   const frameMetadata = {
     version: "next",
     imageUrl: imageUrl,
     button: {
-      title: "Touch Grass",
+      title: buttonName,
       action: {
         type: "launch_frame",
-        name: "Touch Grass",
+        name: buttonName,
         url: process.env.NEXT_PUBLIC_BASE_URL,
         splashImageUrl: `${cdnBaseUrl}/touch-grass/splash.png`,
         splashBackgroundColor: "#000000"

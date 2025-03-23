@@ -407,7 +407,7 @@ export default function HomeComponent() {
             ? process.env.NEXT_PUBLIC_BASE_URL
             : window.location.origin;
           
-          const frameUrl = `${appBaseUrl}/?image=${encodeURIComponent(imagePath)}`;
+          const frameUrl = `${appBaseUrl}/?image=${encodeURIComponent(imagePath)}&overlay=${currentOverlay.id}`;
           
           // Use the frame SDK to create a share intent
           try {

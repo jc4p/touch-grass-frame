@@ -414,6 +414,24 @@ export default function HomeComponent() {
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
+          // Increment the overlay usage count since it's being shared
+          if (currentOverlay.id) {
+            try {
+              await fetch('/api/overlays/increment', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                credentials: 'same-origin',
+                mode: 'same-origin',
+                body: JSON.stringify({ id: currentOverlay.id }),
+              });
+            } catch (error) {
+              console.error('Error incrementing overlay usage:', error);
+              // Continue with share even if increment fails
+            }
+          }
+          
           // Extract the image path from the full URL
           const imageUrl = data.url;
           const imagePath = imageUrl.split('/').pop();
@@ -470,23 +488,7 @@ export default function HomeComponent() {
     closeModal();
     
     // Note: The useEffect hook will handle loading the images when currentOverlay changes
-    
-    // Increment usage count if this is an explicit selection (not the initial default)
-    if (overlay.id && isModalOpen) {
-      try {
-        await fetch('/api/overlays/increment', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'same-origin',
-          mode: 'same-origin',
-          body: JSON.stringify({ id: overlay.id }),
-        });
-      } catch (error) {
-        console.error('Error incrementing overlay usage:', error);
-      }
-    }
+    // We no longer increment usage count here - it will be done during sharing instead
   };
 
   const openSubmitForm = () => {

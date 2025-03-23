@@ -13,11 +13,79 @@ export default function HomeComponent() {
   const [canScroll, setCanScroll] = useState({ up: false, down: false });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState(0);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitFormOpen, setIsSubmitFormOpen] = useState(false);
+  const [darkModePreview, setDarkModePreview] = useState(null);
+  const [lightModePreview, setLightModePreview] = useState(null);
+  const [currentOverlay, setCurrentOverlay] = useState({
+    id: 1,
+    name: "TOUCH GRASS",
+    darkModeImage: "/touch-grass-transparent.png",
+    lightModeImage: "/touch-grass-black-transparent.png",
+    shareText: "I have touched grass."
+  });
+  const [overlays, setOverlays] = useState([]);
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
   const containerRef = useRef(null);
   const darkOverlayRef = useRef(null);
   const lightOverlayRef = useRef(null);
+  const darkFileInputRef = useRef(null);
+  const lightFileInputRef = useRef(null);
+
+  // Fetch overlays from API
+  useEffect(() => {
+    const fetchOverlays = async () => {
+      try {
+        const response = await fetch('/api/overlays');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && Array.isArray(data.overlays)) {
+            // Map DB overlays to component structure
+            const mappedOverlays = data.overlays.map(overlay => {
+              // Handle relative URLs by converting them to absolute URLs
+              const darkModeImage = overlay.dark_mode_image_url.startsWith('http')
+                ? overlay.dark_mode_image_url
+                : `https://images.kasra.codes/touch-grass${overlay.dark_mode_image_url}`;
+              
+              const lightModeImage = overlay.light_mode_image_url
+                ? (overlay.light_mode_image_url.startsWith('http')
+                    ? overlay.light_mode_image_url
+                    : `https://images.kasra.codes/touch-grass${overlay.light_mode_image_url}`)
+                : darkModeImage;
+                
+              return {
+                id: overlay.id,
+                name: overlay.name,
+                darkModeImage,
+                lightModeImage,
+                shareText: overlay.share_text
+              };
+            });
+            
+            setOverlays(mappedOverlays);
+            
+            // Set the first overlay as current if available and if we don't have a selected one
+            if (mappedOverlays.length > 0) {
+              setCurrentOverlay(mappedOverlays[0]);
+              
+              // Call frameReady after setting the overlay
+              if (typeof window !== 'undefined' && window.frameReady) {
+                // Slight delay to ensure UI has updated
+                setTimeout(() => {
+                  window.frameReady();
+                }, 100);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching overlays:', error);
+      }
+    };
+    
+    fetchOverlays();
+  }, []);
 
   // Preload overlay images
   useEffect(() => {
@@ -30,7 +98,7 @@ export default function HomeComponent() {
         drawImageToCanvas();
       }
     };
-    darkOverlay.src = '/touch-grass-transparent.png';
+    darkOverlay.src = currentOverlay.darkModeImage;
     
     // Preload light mode overlay
     const lightOverlay = new window.Image();
@@ -41,8 +109,8 @@ export default function HomeComponent() {
         drawImageToCanvas();
       }
     };
-    lightOverlay.src = '/touch-grass-black-transparent.png';
-  }, []);
+    lightOverlay.src = currentOverlay.lightModeImage;
+  }, [currentOverlay]);
 
   useEffect(() => {
     document.body.className = darkMode ? styles.darkMode : styles.lightMode;
@@ -177,8 +245,30 @@ export default function HomeComponent() {
     
     // Only proceed if the overlay image is loaded
     if (overlayImg) {
-      const overlayWidth = canvasWidth * 0.7; // 70% of canvas width
-      const overlayHeight = (overlayWidth / overlayImg.width) * overlayImg.height;
+      // Calculate aspect ratio of the overlay
+      const overlayAspectRatio = overlayImg.width / overlayImg.height;
+      
+      // Calculate maximum dimensions based on canvas size
+      const maxWidth = canvasWidth * 0.8; // Max 80% of canvas width
+      const maxHeight = canvasHeight * 0.4; // Max 40% of canvas height
+      
+      // Calculate initial dimensions respecting max width constraint
+      let overlayWidth = maxWidth;
+      let overlayHeight = overlayWidth / overlayAspectRatio;
+      
+      // If height exceeds max height, recalculate based on height constraint
+      if (overlayHeight > maxHeight) {
+        overlayHeight = maxHeight;
+        overlayWidth = overlayHeight * overlayAspectRatio;
+      }
+      
+      // If the image is portrait (taller than wide), make sure it doesn't exceed max height
+      if (overlayAspectRatio < 1) {
+        overlayHeight = Math.min(overlayHeight, maxHeight);
+        overlayWidth = overlayHeight * overlayAspectRatio;
+      }
+      
+      // Center the overlay
       const overlayX = (canvasWidth - overlayWidth) / 2;
       const overlayY = (canvasHeight - overlayHeight) / 2;
       
@@ -292,7 +382,8 @@ export default function HomeComponent() {
       
       // Create form data
       const formData = new FormData();
-      formData.append('image', blob, 'touch-grass.png');
+      const fileName = `${currentOverlay.name.toLowerCase().replace(/\s+/g, '-')}.png`;
+      formData.append('image', blob, fileName);
       
       // Add userFid if available (from Farcaster Frame)
       const userFid = typeof window !== 'undefined' && window.userFid ? window.userFid : '977233';
@@ -324,7 +415,7 @@ export default function HomeComponent() {
             const frame = await import('@farcaster/frame-sdk');
             
             // The text for the share
-            const targetText = 'I have touched grass.';
+            const targetText = currentOverlay.shareText;
             
             // Use the frame URL for sharing
             const finalUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(targetText)}&embeds[]=${encodeURIComponent(frameUrl)}`;
@@ -348,29 +439,267 @@ export default function HomeComponent() {
     }
   };
 
+  const openModal = () => {
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setIsSubmitFormOpen(false);
+  };
+
+  const handleOverlaySelect = async (overlay) => {
+    setCurrentOverlay(overlay);
+    closeModal();
+    
+    // Increment usage count if this is an explicit selection (not the initial default)
+    if (overlay.id && isModalOpen) {
+      try {
+        await fetch('/api/overlays/increment', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ id: overlay.id }),
+        });
+      } catch (error) {
+        console.error('Error incrementing overlay usage:', error);
+      }
+    }
+  };
+
+  const openSubmitForm = () => {
+    setIsSubmitFormOpen(true);
+    setDarkModePreview(null);
+    setLightModePreview(null);
+  };
+  
+  const handleDarkModeFileChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const imageUrl = URL.createObjectURL(file);
+      setDarkModePreview(imageUrl);
+    }
+  };
+  
+  const handleLightModeFileChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const imageUrl = URL.createObjectURL(file);
+      setLightModePreview(imageUrl);
+    }
+  };
+
+  const handleSubmitNewOverlay = async (e) => {
+    e.preventDefault();
+    const name = e.target.overlayName.value;
+    const shareText = e.target.shareText.value;
+    const darkModeFile = darkFileInputRef.current.files[0];
+    const lightModeFile = lightFileInputRef.current.files[0];
+
+    if (!name || !shareText || !darkModeFile) {
+      alert('Please provide a name, share text, and dark mode image');
+      return;
+    }
+
+    // Show loading state
+    setIsLoading(true);
+
+    try {
+      // Create form data for API request
+      const formData = new FormData();
+      formData.append('name', name);
+      formData.append('shareText', shareText);
+      formData.append('darkModeImage', darkModeFile);
+      if (lightModeFile) {
+        formData.append('lightModeImage', lightModeFile);
+      }
+      
+      // Add userFid if available (from Farcaster Frame)
+      const userFid = typeof window !== 'undefined' && window.userFid ? window.userFid : '977233';
+      formData.append('userFid', userFid);
+      
+      // Submit to API
+      const response = await fetch('/api/overlays/create', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          // Add the new overlay to the list
+          setOverlays(prevOverlays => [data.overlay, ...prevOverlays]);
+          
+          // Set as current overlay
+          setCurrentOverlay({
+            id: data.overlay.id,
+            name: data.overlay.name,
+            darkModeImage: data.overlay.dark_mode_image_url,
+            lightModeImage: data.overlay.light_mode_image_url || data.overlay.dark_mode_image_url,
+            shareText: data.overlay.share_text
+          });
+          
+          closeModal();
+        } else {
+          throw new Error(data.error || 'Failed to create overlay');
+        }
+      } else {
+        throw new Error('Failed to create overlay: Server error');
+      }
+    } catch (error) {
+      console.error('Error creating overlay:', error);
+      alert('Error creating overlay. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className={styles.container}>
-      <div className={styles.themeToggle} onClick={toggleTheme}>
-        {darkMode ? (
-          <svg xmlns="http://www.w3.org/2000/svg" className={styles.icon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="5" />
-            <line x1="12" y1="1" x2="12" y2="3" />
-            <line x1="12" y1="21" x2="12" y2="23" />
-            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-            <line x1="1" y1="12" x2="3" y2="12" />
-            <line x1="21" y1="12" x2="23" y2="12" />
-            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+      <div className={styles.topControls}>
+        <div className={styles.switchButton} onClick={openModal}>
+          <svg xmlns="http://www.w3.org/2000/svg" className={styles.icon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
           </svg>
-        ) : (
-          <svg xmlns="http://www.w3.org/2000/svg" className={styles.icon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-          </svg>
-        )}
+        </div>
+        <div className={styles.themeToggle} onClick={toggleTheme}>
+          {darkMode ? (
+            <svg xmlns="http://www.w3.org/2000/svg" className={styles.icon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="5" />
+              <line x1="12" y1="1" x2="12" y2="3" />
+              <line x1="12" y1="21" x2="12" y2="23" />
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+              <line x1="1" y1="12" x2="3" y2="12" />
+              <line x1="21" y1="12" x2="23" y2="12" />
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" className={styles.icon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+            </svg>
+          )}
+        </div>
       </div>
       
-      <h1 className={styles.title}>TOUCH GRASS</h1>
+      <h1 className={styles.title}>{currentOverlay.name}</h1>
+      
+      {isModalOpen && (
+        <div className={styles.modalOverlay} onClick={closeModal}>
+          <div className={styles.modal} onClick={e => e.stopPropagation()}>
+            {!isSubmitFormOpen ? (
+              <>
+                <h2 className={styles.modalTitle}>Choose an Overlay</h2>
+                <div className={styles.overlayOptions}>
+                  {overlays.length > 0 ? (
+                    overlays.map(overlay => (
+                      <div 
+                        key={overlay.id}
+                        className={`${styles.overlayOption} ${currentOverlay.id === overlay.id ? styles.selectedOverlay : ''}`}
+                        onClick={() => handleOverlaySelect(overlay)}
+                      >
+                        <h3>{overlay.name}</h3>
+                        <div className={styles.overlayPreview}>
+                          <img src={overlay.darkModeImage} alt={overlay.name} className={styles.previewImage} />
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className={styles.overlayOption} 
+                      onClick={() => handleOverlaySelect({
+                        id: 1,
+                        name: "TOUCH GRASS",
+                        darkModeImage: "/touch-grass-transparent.png",
+                        lightModeImage: "/touch-grass-black-transparent.png",
+                        shareText: "I have touched grass."
+                      })}
+                    >
+                      <h3>TOUCH GRASS</h3>
+                      <div className={styles.overlayPreview}>
+                        <img src="/touch-grass-transparent.png" alt="Touch Grass" className={styles.previewImage} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className={styles.modalButtonsContainer}>
+                  <button className={styles.closeModalBtn} onClick={closeModal}>Close</button>
+                  <button className={styles.submitOptionBtn} onClick={openSubmitForm}>New Overlay</button>
+                </div>
+              </>
+            ) : (
+              <form onSubmit={handleSubmitNewOverlay} className={styles.submitForm}>
+                <h2 className={styles.modalTitle}>Submit New Overlay</h2>
+                
+                <div className={styles.formField}>
+                  <label htmlFor="overlayName">Name:</label>
+                  <input 
+                    type="text" 
+                    id="overlayName" 
+                    name="overlayName" 
+                    placeholder="Touch Grass" 
+                    required 
+                  />
+                </div>
+                
+                <div className={styles.formField}>
+                  <label htmlFor="shareText">Share Text:</label>
+                  <input 
+                    type="text" 
+                    id="shareText" 
+                    name="shareText" 
+                    placeholder="I have touched grass" 
+                    required 
+                  />
+                </div>
+                
+                <div className={styles.formField}>
+                  <label>Dark Mode:</label>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    ref={darkFileInputRef} 
+                    onChange={handleDarkModeFileChange}
+                    required 
+                    className={styles.fileInput}
+                  />
+                  <div className={styles.uploadHint}>Transparent PNG recommended</div>
+                  {darkModePreview && (
+                    <div className={styles.imagePreview}>
+                      <img src={darkModePreview} alt="Dark mode preview" />
+                    </div>
+                  )}
+                </div>
+                
+                <div className={styles.formField}>
+                  <label>Light Mode (Optional):</label>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    ref={lightFileInputRef}
+                    onChange={handleLightModeFileChange}
+                    className={styles.fileInput}
+                  />
+                  {lightModePreview && (
+                    <div className={`${styles.imagePreview} ${styles.lightModePreview}`}>
+                      <img src={lightModePreview} alt="Light mode preview" />
+                    </div>
+                  )}
+                </div>
+                
+                <div className={styles.formButtons}>
+                  <button type="button" className={styles.cancelBtn} onClick={() => setIsSubmitFormOpen(false)}>Back</button>
+                  <button type="submit" className={styles.submitBtn}>Submit</button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
       
       <div className={styles.imageUploadArea} onClick={() => !selectedImage && !isLoading && fileInputRef.current.click()}>
         <input
@@ -429,7 +758,6 @@ export default function HomeComponent() {
       
       {selectedImage && (
         <div className={styles.actionsContainer}>
-          <h2 className={styles.ctaHeading}>Cast Your Proof</h2>
           <div className={styles.buttonContainer}>
             <button 
               className={styles.shareButton}

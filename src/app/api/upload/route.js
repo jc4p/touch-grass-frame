@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { uploadImageToR2 } from '@/lib/r2';
 
-// Configure the route to use Edge Runtime with increased timeout
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 

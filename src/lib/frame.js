@@ -17,14 +17,4 @@ export async function initializeFrame() {
 
   window.userFid = userInfo.fid;
   console.log('User FID set:', window.userFid);
-  
-  // Don't call ready() here, we'll call it after overlay is loaded
-  window.frameReady = async () => {
-    try {
-      await frame.sdk.actions.ready();
-      console.log('Frame ready called');
-    } catch (error) {
-      console.error('Error calling frame ready:', error);
-    }
-  };
 } 

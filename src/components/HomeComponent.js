@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from 'react';
-import NextImage from 'next/image';
 import styles from './HomeComponent.module.css';
-
+import * as frame from '@farcaster/frame-sdk';
 export default function HomeComponent() {
   const [darkMode, setDarkMode] = useState(true);
   const [selectedImage, setSelectedImage] = useState(null);
@@ -68,14 +67,8 @@ export default function HomeComponent() {
             // Set the first overlay as current if available and if we don't have a selected one
             if (mappedOverlays.length > 0) {
               setCurrentOverlay(mappedOverlays[0]);
-              
-              // Call frameReady after setting the overlay
-              if (typeof window !== 'undefined' && window.frameReady) {
-                // Slight delay to ensure UI has updated
-                setTimeout(() => {
-                  window.frameReady();
-                }, 100);
-              }
+
+              await frame.sdk.actions.ready();
             }
           }
         }

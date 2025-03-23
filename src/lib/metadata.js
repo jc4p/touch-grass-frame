@@ -48,7 +48,7 @@ export async function generateMetadata(imageParam, overlayId) {
         type: "launch_frame",
         name: buttonName,
         url: process.env.NEXT_PUBLIC_BASE_URL,
-        splashImageUrl: `${cdnBaseUrl}/touch-grass/splash.png`,
+        splashImageUrl: `${cdnBaseUrl}/touch-grass/square.png`,
         splashBackgroundColor: "#000000"
       }
     }
